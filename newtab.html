@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lofi New Tab</title>
+    <link rel="stylesheet" href="newtab.css" />
+  </head>
+  <body>
+    <div id="bg">
+      <iframe
+        id="yt"
+        src="https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&showinfo=0&playsinline=1&iv_load_policy=3&enablejsapi=1&loop=1&playlist=jfKfPfyJRdk"
+        title="lofi hip hop radio"
+        frameborder="0"
+        allow="autoplay; encrypted-media; picture-in-picture"
+        allowfullscreen
+      ></iframe>
+      <div id="videoOverlay"></div>
+    </div>
+
+    <div id="veil"></div>
+
+    <div id="clock" aria-live="polite">
+      <div id="time">--:--</div>
+      <div id="pomodoro">
+        <div id="pomodoroDots">
+          <span class="pom-dot"></span>
+          <span class="pom-dot"></span>
+          <span class="pom-dot"></span>
+          <span class="pom-dot"></span>
+        </div>
+        <div id="pomodoroTimerRow">
+          <span id="pomodoroTimer">25:00</span>
+          <button id="pomodoroReset" type="button" title="Reset timer">⟲</button>
+        </div>
+        <button id="pomodoroBtn" type="button">Start</button>
+      </div>
+    </div>
+
+    <div id="info">
+      <div id="date">—</div>
+      <div id="weather">
+        <div id="weatherTemp">Set location in settings</div>
+        <div id="weatherCity"></div>
+      </div>
+    </div>
+
+    <button id="fullscreenBtn" type="button" title="Toggle fullscreen">⛶</button>
+
+    <div id="controlsWrapper">
+      <div id="videoHint">Click anywhere for video controls</div>
+      <div id="controls">
+        <button id="muteToggle" type="button" title="Click to unmute">🔇 Unmute</button>
+        <button id="settingsBtn" type="button" title="Settings">⚙️ Settings</button>
+      </div>
+    </div>
+
+    <div id="settingsModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Settings</h2>
+          <button id="closeModal" type="button" title="Close">✕</button>
+        </div>
+        <div class="modal-tabs">
+          <button class="tab-btn active" data-tab="video">Video</button>
+          <button class="tab-btn" data-tab="display">Display</button>
+          <button class="tab-btn" data-tab="pomodoro">Pomodoro</button>
+          <button class="tab-btn" data-tab="weather">Weather</button>
+        </div>
+        <div class="modal-body">
+          <div class="tab-content active" id="tab-video">
+          <label for="streamUrl">YouTube Video URL:</label>
+          <input type="text" id="streamUrl" placeholder="https://www.youtube.com/watch?v=jfKfPfyJRdk" />
+          <p class="hint">Paste the full YouTube URL (e.g., https://www.youtube.com/watch?v=jfKfPfyJRdk)</p>
+
+          <div class="divider">OR browse live videos ↓</div>
+
+          <div class="setting-row">
+            <label for="apiKey">
+              YouTube API Key (optional)
+              <button type="button" class="tooltip-btn" id="apiKeyTooltip">ⓘ</button>
+              <div class="tooltip-content">
+                <strong>Get a free YouTube Data API v3 key:</strong>
+                <ol>
+                  <li>Go to <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a></li>
+                  <li>Create a project</li>
+                  <li>Enable YouTube Data API v3<br>(search for youtube at the top)</li>
+                  <li>Create credentials (API key)</li>
+                  <li>Paste it here</li>
+                </ol>
+              </div>
+            </label>
+            <div id="apiKeyInput" class="api-key-input">
+              <input type="text" id="apiKey" placeholder="Enter your YouTube API key" />
+              <button type="button" id="saveApiKey">Save</button>
+            </div>
+            <div id="apiKeyConfigured" class="api-key-configured" style="display: none;">
+              <span class="api-key-status">✓ API Key Configured</span>
+              <button type="button" id="editApiKey" class="edit-btn">Edit</button>
+            </div>
+          </div>
+
+          <div id="videoBrowser" class="video-browser">
+            <div class="browser-search">
+              <input type="text" id="videoSearch" placeholder="Search live videos..." value="lofi" />
+              <button type="button" id="searchBtn">Search</button>
+            </div>
+            <div id="videoResults" class="video-results">
+              <p class="browser-hint">Enter an API key above to search live videos</p>
+            </div>
+          </div>
+
+          </div>
+
+          <div class="tab-content" id="tab-display">
+            <div class="setting-row">
+              <label for="use24h">
+                <input type="checkbox" id="use24h" />
+                Use 24-hour clock
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <label for="clockPosition">Clock Position (% from top):</label>
+              <input type="number" id="clockPosition" placeholder="10" min="0" max="100" />
+              <p class="hint">Position of the clock as percentage from top (0-100)</p>
+            </div>
+
+            <div class="setting-row">
+              <label for="infoPosition">Date/Weather Position (% from bottom):</label>
+              <input type="number" id="infoPosition" placeholder="5" min="0" max="100" />
+              <p class="hint">Position of date/weather as percentage from bottom (0-100)</p>
+            </div>
+
+            <div class="setting-row">
+              <label for="veilOpacity">Background Veil Opacity:</label>
+              <div class="veil-opacity-control">
+                <input type="range" id="veilOpacity" min="0" max="100" value="45" />
+                <span id="veilOpacityValue">45%</span>
+              </div>
+              <p class="hint">How dark the overlay is (0% = transparent, 100% = solid)</p>
+            </div>
+
+            <div class="setting-row">
+              <label>Veil Color:</label>
+              <div class="veil-color-swatches">
+                <button type="button" class="veil-swatch active" data-color="gray" style="background: rgb(120,120,120)">
+                  <span class="swatch-label">Gray</span>
+                </button>
+                <button type="button" class="veil-swatch" data-color="warm" style="background: rgb(180,140,100)">
+                  <span class="swatch-label">Warm</span>
+                </button>
+                <button type="button" class="veil-swatch" data-color="cool" style="background: rgb(100,130,160)">
+                  <span class="swatch-label">Cool</span>
+                </button>
+                <button type="button" class="veil-swatch" data-color="black" style="background: rgb(0,0,0)">
+                  <span class="swatch-label">Black</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="setting-row">
+              <label>Preview:</label>
+              <div id="veilPreview" class="veil-preview"></div>
+              <button type="button" id="resetVeil" class="reset-btn">Reset to Default</button>
+            </div>
+          </div>
+
+          <div class="tab-content" id="tab-pomodoro">
+            <div class="setting-row">
+              <label for="showPomodoro">
+                <input type="checkbox" id="showPomodoro" />
+                Show Pomodoro timer
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <label for="pomodoroWork">Work Duration (minutes):</label>
+              <input type="number" id="pomodoroWork" placeholder="25" min="1" max="120" value="25" />
+              <p class="hint">Length of each work session (default: 25 minutes)</p>
+            </div>
+
+            <div class="setting-row">
+              <label for="pomodoroBreak">Break Duration (minutes):</label>
+              <input type="number" id="pomodoroBreak" placeholder="5" min="1" max="60" value="5" />
+              <p class="hint">Length of short breaks between work sessions (default: 5 minutes)</p>
+            </div>
+
+            <div class="setting-row">
+              <label for="pomodoroLongBreak">Long Break Duration (minutes):</label>
+              <input type="number" id="pomodoroLongBreak" placeholder="15" min="1" max="120" value="15" />
+              <p class="hint">Length of long break after 4 work sessions (default: 15 minutes)</p>
+            </div>
+
+            <div class="setting-row">
+              <label for="pomodoroPulseSpeed">Dot Pulse Speed (seconds):</label>
+              <input type="number" id="pomodoroPulseSpeed" placeholder="3" min="0.5" max="10" step="0.5" value="3" />
+              <p class="hint">Speed of the breathing animation on the active session dot (default: 3 seconds)</p>
+            </div>
+          </div>
+
+          <div class="tab-content" id="tab-weather">
+            <div class="setting-row">
+              <label for="showWeather">
+                <input type="checkbox" id="showWeather" />
+                Show weather widget
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <label for="weatherCity">Weather Location (City):</label>
+              <input type="text" id="weatherCityInput" placeholder="San Francisco" />
+              <p class="hint">Enter your city name for weather updates</p>
+            </div>
+
+            <div class="setting-row">
+              <label for="useFahrenheit">
+                <input type="checkbox" id="useFahrenheit" />
+                Use Fahrenheit (°F)
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="saveSettings" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="newtab.js"></script>
+  </body>
+</html>

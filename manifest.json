@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Lofi New Tab (YouTube Background + Clock)",
+  "version": "1.0.0",
+  "description": "Replaces the New Tab with a YouTube livestream in the background, translucent grey overlay, and a clean clock.",
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "action": {
+    "default_title": "Lofi New Tab"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*",
+    "https://geocoding-api.open-meteo.com/*",
+    "https://api.open-meteo.com/*"
+  ]
+}
