@@ -249,15 +249,15 @@ async function loadSettings() {
   use24hCheckbox.checked = use24Hour;
   updateClock();
 
+  useFahrenheit = localStorage.getItem('useFahrenheit') === 'true';
+  useFahrenheitCheckbox.checked = useFahrenheit;
+
   // Load weather settings
   const savedCity = localStorage.getItem('weatherCity');
   if (savedCity) {
     weatherCityInput.value = savedCity;
     fetchWeather(savedCity);
   }
-
-  useFahrenheit = localStorage.getItem('useFahrenheit') === 'true';
-  useFahrenheitCheckbox.checked = useFahrenheit;
 
   // Load show weather preference
   const showWeather = localStorage.getItem('showWeather') !== 'false'; // default true
@@ -513,8 +513,71 @@ document.addEventListener('keydown', (e) => {
 let weatherData = null;
 let useFahrenheit = false;
 
+const WEATHER_CACHE_KEY = 'weatherCache';
+const WEATHER_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+function getWeatherCache() {
+  try {
+    const raw = localStorage.getItem(WEATHER_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.error('Failed to read weather cache:', error);
+    return {};
+  }
+}
+
+function saveWeatherCache(cache) {
+  try {
+    localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error('Failed to write weather cache:', error);
+  }
+}
+
+function makeWeatherCacheId(city, fahrenheit) {
+  return `${city.trim().toLowerCase()}|${fahrenheit ? 'F' : 'C'}`;
+}
+
+function getCachedWeather(city) {
+  if (!city) return null;
+
+  const cache = getWeatherCache();
+  const cacheId = makeWeatherCacheId(city, useFahrenheit);
+  const entry = cache[cacheId];
+
+  if (!entry) return null;
+
+  if (Date.now() - entry.timestamp > WEATHER_CACHE_TTL) {
+    // Expired cache entry – remove it
+    delete cache[cacheId];
+    saveWeatherCache(cache);
+    return null;
+  }
+
+  return entry.data;
+}
+
+function setCachedWeather(city, data) {
+  if (!city || !data) return;
+
+  const cache = getWeatherCache();
+  const cacheId = makeWeatherCacheId(city, useFahrenheit);
+  cache[cacheId] = {
+    data,
+    timestamp: Date.now()
+  };
+  saveWeatherCache(cache);
+}
+
 async function fetchWeather(city) {
   try {
+    const cached = getCachedWeather(city);
+    if (cached) {
+      weatherData = cached;
+      updateWeatherDisplay();
+      return;
+    }
+
     // First, geocode the city to get coordinates
     const geoResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`);
     const geoData = await geoResponse.json();
@@ -536,6 +599,7 @@ async function fetchWeather(city) {
       city: name
     };
 
+    setCachedWeather(city, weatherData);
     updateWeatherDisplay();
   } catch (e) {
     console.error('Error fetching weather:', e);

@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Lofi New Tab</title>
+    <link rel="icon" href="icons/icon32.png" sizes="32x32" />
     <link rel="stylesheet" href="newtab.css" />
   </head>
   <body>
@@ -67,6 +68,7 @@
           <button class="tab-btn" data-tab="display">Display</button>
           <button class="tab-btn" data-tab="pomodoro">Pomodoro</button>
           <button class="tab-btn" data-tab="weather">Weather</button>
+          <button class="tab-btn" data-tab="about">About</button>
         </div>
         <div class="modal-body">
           <div class="tab-content active" id="tab-video">
@@ -221,8 +223,27 @@
               </label>
             </div>
           </div>
+
+          <div class="tab-content" id="tab-about">
+            <div class="about-card">
+              <h3>Hi, I&rsquo;m Dante</h3>
+              <p>
+                I built Lofi New Tab to give my browser a peaceful landing pad with cozy visuals and background music that makes it easier to focus.
+              </p>
+              <p>
+                Enjoying the vibes? A review on the Chrome Web Store (link coming soon!) helps more people discover it.
+              </p>
+              <p>
+                If you want to support development directly, you can <a href="https://ko-fi.com/dantemoony" target="_blank" rel="noopener">buy me a coffee</a>.
+              </p>
+              <p>
+                Questions or ideas? Email me at <a href="mailto:dante@hey.com">dante@hey.com</a> or visit the project on <a href="https://github.com/dantemoon1/lofi-newtab" target="_blank" rel="noopener">GitHub</a>.
+              </p>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
+          <div class="made-with-love" aria-hidden="true">Made with ♡ in OC, CA</div>
           <button id="saveSettings" type="button">Save</button>
         </div>
       </div>
