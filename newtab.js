@@ -5,6 +5,8 @@ const videoOverlay = document.getElementById('videoOverlay');
 const videoHint = document.getElementById('videoHint');
 let overlayRemoved = false;
 let interactionTimeout = null;
+const OVERLAY_TIMEOUT = 10000; // 10 seconds
+let overrideTimeValue = null;
 
 videoOverlay.addEventListener('click', () => {
   if (!overlayRemoved) {
@@ -14,14 +16,14 @@ videoOverlay.addEventListener('click', () => {
     overlayRemoved = true;
     console.log('Video overlay disabled - click again to interact');
 
-    // Reset after 60 seconds of inactivity
+    // Reset after a short period of inactivity
     clearTimeout(interactionTimeout);
     interactionTimeout = setTimeout(() => {
       videoOverlay.style.pointerEvents = 'auto';
       videoHint.style.display = 'block';
       overlayRemoved = false;
       console.log('Video overlay re-enabled');
-    }, 60000);
+    }, OVERLAY_TIMEOUT);
   }
 });
 
@@ -35,7 +37,7 @@ document.addEventListener('click', (e) => {
       videoHint.style.display = 'block';
       overlayRemoved = false;
       console.log('Video overlay re-enabled after inactivity');
-    }, 60000);
+    }, OVERLAY_TIMEOUT);
   }
 });
 
@@ -43,14 +45,19 @@ function updateClock() {
   const now = new Date();
   let h = now.getHours();
   const m = now.getMinutes().toString().padStart(2, '0');
+  const timeElement = document.getElementById('time');
 
-  if (!use24Hour) {
-    const period = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    document.getElementById('time').textContent = `${h}:${m} ${period}`;
+  if (overrideTimeValue) {
+    timeElement.textContent = overrideTimeValue;
   } else {
-    h = h.toString().padStart(2, '0');
-    document.getElementById('time').textContent = `${h}:${m}`;
+    if (!use24Hour) {
+      const period = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      timeElement.textContent = `${h}:${m} ${period}`;
+    } else {
+      h = h.toString().padStart(2, '0');
+      timeElement.textContent = `${h}:${m}`;
+    }
   }
 
   const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
@@ -100,6 +107,7 @@ const useFahrenheitCheckbox = document.getElementById('useFahrenheit');
 const showWeatherCheckbox = document.getElementById('showWeather');
 const clockPositionInput = document.getElementById('clockPosition');
 const infoPositionInput = document.getElementById('infoPosition');
+const overrideTimeInput = document.getElementById('overrideTime');
 const veilOpacityInput = document.getElementById('veilOpacity');
 const veilOpacityValue = document.getElementById('veilOpacityValue');
 const veilSwatches = document.querySelectorAll('.veil-swatch');
@@ -211,24 +219,50 @@ function updateVeilPreview(color, opacity) {
   veilPreview.style.background = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
 }
 
-// Extract video ID from YouTube URL
+// Extract video ID from YouTube URL or raw ID
 function extractVideoId(url) {
-  // If it's already just an ID, return it
-  if (!url.includes('youtube.com') && !url.includes('youtu.be') && url.length === 11) {
-    return url;
+  if (!url) return null;
+
+  const trimmed = url.trim();
+
+  // If it's already just an 11-character ID, return it
+  if (!trimmed.includes('youtube.com') && !trimmed.includes('youtu.be') && trimmed.length === 11) {
+    return trimmed;
   }
 
-  // Handle youtube.com/watch?v=... URLs
-  const watchMatch = url.match(/[?&]v=([^&]+)/);
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.replace(/^www\./, '');
+
+    // Short links like https://youtu.be/<id>
+    if (host === 'youtu.be') {
+      const shortId = parsed.pathname.replace(/^\//, '').split('/')[0];
+      return shortId || null;
+    }
+
+    if (host.endsWith('youtube.com')) {
+      // Standard watch URLs
+      const searchId = parsed.searchParams.get('v');
+      if (searchId) return searchId;
+
+      const segments = parsed.pathname.split('/').filter(Boolean);
+      if (segments.length === 0) return null;
+
+      const [first, second] = segments;
+      if (first === 'embed' && second) return second;
+      if (first === 'live' && second) return second;
+      if (first === 'shorts' && second) return second;
+    }
+  } catch (error) {
+    console.warn('Error parsing YouTube URL:', error);
+  }
+
+  // Fallback regex checks for unusual formats
+  const watchMatch = trimmed.match(/[?&]v=([^&]+)/);
   if (watchMatch) return watchMatch[1];
 
-  // Handle youtu.be/... URLs
-  const shortMatch = url.match(/youtu\.be\/([^?]+)/);
-  if (shortMatch) return shortMatch[1];
-
-  // Handle youtube.com/embed/... URLs
-  const embedMatch = url.match(/\/embed\/([^?]+)/);
-  if (embedMatch) return embedMatch[1];
+  const pathMatch = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed|live|shorts)\/)([^?&]+)/);
+  if (pathMatch) return pathMatch[1];
 
   return null;
 }
@@ -247,7 +281,6 @@ async function loadSettings() {
   // Load 24-hour clock preference
   use24Hour = localStorage.getItem('use24Hour') !== 'false';
   use24hCheckbox.checked = use24Hour;
-  updateClock();
 
   useFahrenheit = localStorage.getItem('useFahrenheit') === 'true';
   useFahrenheitCheckbox.checked = useFahrenheit;
@@ -271,6 +304,10 @@ async function loadSettings() {
   infoPositionInput.value = infoPos;
   document.getElementById('clock').style.top = `${clockPos}%`;
   document.getElementById('info').style.bottom = `${infoPos}%`;
+
+  // Load optional time override
+  overrideTimeValue = localStorage.getItem('overrideTimeValue');
+  overrideTimeInput.value = overrideTimeValue || '';
 
   // Load API key
   const savedApiKey = await getStoredApiKey();
@@ -318,6 +355,7 @@ async function loadSettings() {
   updateVeilPreview(currentVeilColor, currentVeilOpacity);
 
   resetPomodoro();
+  updateClock();
 }
 
 // Update iframe src with new video ID
@@ -466,6 +504,15 @@ saveSettings.addEventListener('click', () => {
   document.getElementById('clock').style.top = `${clockPos}%`;
   document.getElementById('info').style.bottom = `${infoPos}%`;
 
+  const customTime = overrideTimeInput.value.trim();
+  if (customTime) {
+    overrideTimeValue = customTime;
+    localStorage.setItem('overrideTimeValue', customTime);
+  } else {
+    overrideTimeValue = null;
+    localStorage.removeItem('overrideTimeValue');
+  }
+
   // Save show Pomodoro preference
   const showPomodoro = showPomodoroCheckbox.checked;
   localStorage.setItem('showPomodoro', showPomodoro);
@@ -496,7 +543,7 @@ saveSettings.addEventListener('click', () => {
   updateIframeSrc(videoId, videoChanged);
   updateClock();
   settingsModal.classList.remove('show');
-  console.log('Settings saved. Video ID:', videoId, '24h:', use24Hour, 'City:', city, 'Fahrenheit:', useFahrenheit, 'Clock:', clockPos, 'Info:', infoPos);
+  console.log('Settings saved. Video ID:', videoId, '24h:', use24Hour, 'City:', city, 'Fahrenheit:', useFahrenheit, 'Clock:', clockPos, 'Info:', infoPos, 'Time override:', overrideTimeValue);
 });
 
 document.addEventListener('keydown', (e) => {

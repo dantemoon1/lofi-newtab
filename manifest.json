@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Lofi New Tab (YouTube Background + Clock)",
   "version": "1.0.0",
-  "description": "Replaces the New Tab with a YouTube livestream in the background, translucent grey overlay, and a clean clock.",
+  "description": "Calm lofi new tab with streaming background, clock, weather, and Pomodoro focus tools.",
   "chrome_url_overrides": {
     "newtab": "newtab.html"
   },
