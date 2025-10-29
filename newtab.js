@@ -1132,6 +1132,39 @@ fullscreenBtn.addEventListener('click', () => {
   }
 });
 
+// Changelog modal
+const changelogModal = document.getElementById('changelogModal');
+const closeChangelogModal = document.getElementById('closeChangelogModal');
+const closeChangelogBtn = document.getElementById('closeChangelogBtn');
+
+// Close changelog modal
+function hideChangelogModal() {
+  changelogModal.classList.remove('show');
+  chrome.storage.local.set({ showChangelog: false });
+}
+
+closeChangelogModal.addEventListener('click', hideChangelogModal);
+closeChangelogBtn.addEventListener('click', hideChangelogModal);
+
+// Close modal when clicking outside
+changelogModal.addEventListener('click', (e) => {
+  if (e.target === changelogModal) {
+    hideChangelogModal();
+  }
+});
+
+// Check if we should show changelog on page load
+chrome.storage.local.get(['showChangelog'], (result) => {
+  if (result.showChangelog === true) {
+    // Update version number in modal
+    const version = chrome.runtime.getManifest().version;
+    document.getElementById('changelogVersion').textContent = version;
+
+    // Show the modal
+    changelogModal.classList.add('show');
+  }
+});
+
 // Load settings on page load
 loadSettings().catch((error) => {
   console.error('Error loading settings:', error);

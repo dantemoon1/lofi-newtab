@@ -14,8 +14,9 @@
         src="https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&showinfo=0&playsinline=1&iv_load_policy=3&enablejsapi=1&loop=1&playlist=jfKfPfyJRdk"
         title="lofi hip hop radio"
         frameborder="0"
-        allow="autoplay; encrypted-media; picture-in-picture"
+        allow="autoplay; encrypted-media; picture-in-picture; web-share"
         allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"
       ></iframe>
       <div id="videoOverlay"></div>
     </div>
@@ -251,6 +252,32 @@
         <div class="modal-footer">
           <div class="made-with-love" aria-hidden="true">Made with ♡ in OC, CA</div>
           <button id="saveSettings" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="changelogModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>What's New in v<span id="changelogVersion">1.0.1</span></h2>
+          <button id="closeChangelogModal" type="button" title="Close">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="padding: 20px 0;">
+            <h3 style="margin-bottom: 15px; color: #888;">YouTube Video Fix</h3>
+            <p style="margin-bottom: 15px; line-height: 1.6; color: #888;">
+              We've fixed the YouTube Error 153 issue that was preventing background videos from loading!
+            </p>
+            <p style="margin-bottom: 15px; line-height: 1.6; color: #888;">
+              YouTube recently updated their security requirements for embedded videos. We've updated the extension to work with these new requirements.
+            </p>
+            <p class="hint">
+              <strong>Note:</strong> This update requires permission to access YouTube.com to properly load the background videos. This permission is only used for the lofi video background feature.
+            </p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="closeChangelogBtn" type="button">Got it, thanks!</button>
         </div>
       </div>
     </div>
