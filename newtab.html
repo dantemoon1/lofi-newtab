@@ -73,9 +73,9 @@
         </div>
         <div class="modal-body">
           <div class="tab-content active" id="tab-video">
-          <label for="streamUrl">YouTube Video URL:</label>
-          <input type="text" id="streamUrl" placeholder="https://www.youtube.com/watch?v=jfKfPfyJRdk" />
-          <p class="hint">Paste the full YouTube URL (e.g., https://www.youtube.com/watch?v=jfKfPfyJRdk)</p>
+          <label for="streamUrl">YouTube Video or Playlist URL:</label>
+          <input type="text" id="streamUrl" placeholder="https://www.youtube.com/watch?v=jfKfPfyJRdk or https://www.youtube.com/playlist?list=..." />
+          <p class="hint">Paste a full YouTube video or playlist URL. Playlist links will loop through all videos in the playlist.</p>
 
           <div class="divider">OR browse live videos ↓</div>
 
@@ -164,8 +164,6 @@
             </div>
 
             <div class="setting-row">
-              <label>Preview:</label>
-              <div id="veilPreview" class="veil-preview"></div>
               <button type="button" id="resetVeil" class="reset-btn">Reset to Default</button>
             </div>
 
@@ -218,6 +216,21 @@
             </div>
 
             <div class="setting-row">
+              <label>Weather Location Source:</label>
+              <div class="weather-mode-group" role="radiogroup" aria-label="Weather location source">
+                <label class="weather-mode-option" for="weatherModeManual">
+                  <input type="radio" id="weatherModeManual" name="weatherMode" value="manual" />
+                  <span>Manual city</span>
+                </label>
+                <label class="weather-mode-option" for="weatherModeAuto">
+                  <input type="radio" id="weatherModeAuto" name="weatherMode" value="auto" checked />
+                  <span>Auto-detect</span>
+                </label>
+              </div>
+              <p class="hint">Auto-detect uses your approximate IP-based location.</p>
+            </div>
+
+            <div class="setting-row" id="weatherCityRow">
               <label for="weatherCity">Weather Location (City):</label>
               <input type="text" id="weatherCityInput" placeholder="San Francisco" />
               <p class="hint">Enter your city name for weather updates</p>
@@ -238,7 +251,7 @@
                 I built Lofi New Tab to give my browser a peaceful landing pad with cozy visuals and background music that makes it easier to focus.
               </p>
               <p>
-                Enjoying the vibes? A review on the Chrome Web Store (link coming soon!) helps more people discover it.
+                Enjoying the vibes? Leave a review on the <a href="https://chromewebstore.google.com/detail/libfpacmmofhnnagliflmpnkalgkcamb?utm_source=item-share-cb" target="_blank" rel="noopener">Chrome Web Store</a> to help more people discover it.
               </p>
               <p>
                 If you want to support development directly, you can <a href="https://ko-fi.com/dantemoony" target="_blank" rel="noopener">buy me a coffee</a>.
@@ -259,20 +272,34 @@
     <div id="changelogModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h2>What's New in v<span id="changelogVersion">1.0.1</span></h2>
+          <h2>What's New in v<span id="changelogVersion">1.2.0</span></h2>
           <button id="closeChangelogModal" type="button" title="Close">✕</button>
         </div>
         <div class="modal-body">
-          <div style="padding: 20px 0;">
-            <h3 style="margin-bottom: 15px; color: #888;">YouTube Video Fix</h3>
-            <p style="margin-bottom: 15px; line-height: 1.6; color: #888;">
-              We've fixed the YouTube Error 153 issue that was preventing background videos from loading!
+          <div class="changelog-content">
+            <h3 class="changelog-heading">YouTube Playlist Support</h3>
+            <p class="changelog-copy">
+              You can now paste a YouTube playlist link to loop through multiple videos instead of playing just one.
             </p>
-            <p style="margin-bottom: 15px; line-height: 1.6; color: #888;">
-              YouTube recently updated their security requirements for embedded videos. We've updated the extension to work with these new requirements.
+
+            <h3 class="changelog-heading">Background Pomodoro Alerts</h3>
+            <p class="changelog-copy">
+              Pomodoro alerts now work even if your new tab isn't open, so you won't miss the end of a focus session.
             </p>
-            <p class="hint">
-              <strong>Note:</strong> This update requires permission to access YouTube.com to properly load the background videos. This permission is only used for the lofi video background feature.
+
+            <h3 class="changelog-heading">Shared Pomodoro Timer</h3>
+            <p class="changelog-copy">
+              Your focus timer now stays in sync across new tabs and keeps going after refreshes.
+            </p>
+
+            <h3 class="changelog-heading">Automatic Weather</h3>
+            <p class="changelog-copy">
+              Weather can now detect your approximate location automatically, with manual city entry still available if you prefer.
+            </p>
+
+            <h3 class="changelog-heading">Weather Refresh Improvements</h3>
+            <p class="changelog-copy changelog-copy-last">
+              Weather updates are more reliable and refresh automatically in the background.
             </p>
           </div>
         </div>

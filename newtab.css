@@ -334,6 +334,27 @@ body {
 .about-card a:hover {
   color: #fff;
 }
+.changelog-content {
+  padding: 20px 0;
+}
+.changelog-heading {
+  margin: 0 0 15px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+}
+.changelog-heading:not(:first-child) {
+  margin-top: 24px;
+}
+.changelog-copy {
+  margin: 0 0 15px;
+  color: #888;
+  line-height: 1.6;
+  font-size: 14px;
+}
+.changelog-copy-last {
+  margin-bottom: 0;
+}
 .modal-body label {
   display: block;
   margin-bottom: 8px;
@@ -391,6 +412,31 @@ body {
   width: 18px;
   height: 18px;
   cursor: pointer;
+}
+.weather-mode-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.weather-mode-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.88);
+}
+.weather-mode-option:hover {
+  background: rgba(255,255,255,0.08);
+}
+.weather-mode-option input[type="radio"] {
+  margin: 0;
+}
+.weather-mode-option span {
+  font-size: 14px;
 }
 .tooltip-btn {
   display: inline-flex;
@@ -705,16 +751,7 @@ body {
   color: rgba(255,255,255,0.9);
   text-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
-.veil-preview {
-  width: 100%;
-  height: 80px;
-  border-radius: 8px;
-  margin-top: 8px;
-  border: 1px solid rgba(255,255,255,0.2);
-  transition: all 0.3s;
-}
 .reset-btn {
-  margin-top: 12px;
   padding: 8px 16px;
   border: 1px solid rgba(255,255,255,0.3);
   border-radius: 6px;

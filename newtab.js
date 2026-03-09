@@ -14,7 +14,6 @@ videoOverlay.addEventListener('click', () => {
     videoOverlay.style.pointerEvents = 'none';
     videoHint.style.display = 'none';
     overlayRemoved = true;
-    console.log('Video overlay disabled - click again to interact');
 
     // Reset after a short period of inactivity
     clearTimeout(interactionTimeout);
@@ -22,7 +21,6 @@ videoOverlay.addEventListener('click', () => {
       videoOverlay.style.pointerEvents = 'auto';
       videoHint.style.display = 'block';
       overlayRemoved = false;
-      console.log('Video overlay re-enabled');
     }, OVERLAY_TIMEOUT);
   }
 });
@@ -36,7 +34,6 @@ document.addEventListener('click', (e) => {
       videoOverlay.style.pointerEvents = 'auto';
       videoHint.style.display = 'block';
       overlayRemoved = false;
-      console.log('Video overlay re-enabled after inactivity');
     }, OVERLAY_TIMEOUT);
   }
 });
@@ -74,20 +71,17 @@ let isMuted = true;
 const YT_ORIGIN = 'https://www.youtube.com';
 
 muteToggle.addEventListener('click', () => {
-  console.log('Mute toggle clicked!');
   try {
     if (isMuted) {
       // Unmute
       iframe.contentWindow.postMessage('{"event":"command","func":"unMute","args":""}', YT_ORIGIN);
       muteToggle.textContent = '🔊 Mute';
       muteToggle.title = 'Click to mute';
-      console.log('Sent unmute command to iframe');
     } else {
       // Mute
       iframe.contentWindow.postMessage('{"event":"command","func":"mute","args":""}', YT_ORIGIN);
       muteToggle.textContent = '🔇 Unmute';
       muteToggle.title = 'Click to unmute';
-      console.log('Sent mute command to iframe');
     }
     isMuted = !isMuted;
   } catch (e) {
@@ -103,6 +97,8 @@ const saveSettings = document.getElementById('saveSettings');
 const streamUrlInput = document.getElementById('streamUrl');
 const use24hCheckbox = document.getElementById('use24h');
 const weatherCityInput = document.getElementById('weatherCityInput');
+const weatherCityRow = document.getElementById('weatherCityRow');
+const weatherModeInputs = document.querySelectorAll('input[name="weatherMode"]');
 const useFahrenheitCheckbox = document.getElementById('useFahrenheit');
 const showWeatherCheckbox = document.getElementById('showWeather');
 const clockPositionInput = document.getElementById('clockPosition');
@@ -111,7 +107,6 @@ const overrideTimeInput = document.getElementById('overrideTime');
 const veilOpacityInput = document.getElementById('veilOpacity');
 const veilOpacityValue = document.getElementById('veilOpacityValue');
 const veilSwatches = document.querySelectorAll('.veil-swatch');
-const veilPreview = document.getElementById('veilPreview');
 const veilElement = document.getElementById('veil');
 const resetVeilBtn = document.getElementById('resetVeil');
 const pomodoroWorkInput = document.getElementById('pomodoroWork');
@@ -133,6 +128,8 @@ const DEFAULT_VIDEO_ID = 'jfKfPfyJRdk';
 const STORAGE_KEYS = {
   youtubeApiKey: 'youtubeApiKey'
 };
+
+const POMODORO_STATE_KEY = 'pomodoroState';
 
 function hasChromeStorageSync() {
   return typeof chrome !== 'undefined' && !!(chrome.storage && chrome.storage.sync);
@@ -185,10 +182,115 @@ async function migrateLegacyApiKey() {
   try {
     await setStoredApiKey(legacyKey);
     localStorage.removeItem(STORAGE_KEYS.youtubeApiKey);
-    console.log('Migrated YouTube API key to chrome.storage');
   } catch (error) {
     console.error('Failed to migrate legacy API key:', error);
   }
+}
+
+function getDefaultPomodoroState() {
+  return {
+    status: 'idle',
+    mode: 'work',
+    endTime: null,
+    remainingSeconds: 25 * 60,
+    sessionsCompleted: 0,
+    workDuration: 25,
+    breakDuration: 5,
+    longBreakDuration: 15,
+    transitionAt: null,
+    transitionTitle: '',
+    transitionBody: '',
+  };
+}
+
+function getPomodoroModeDurationSeconds(state, mode = state.mode) {
+  if (mode === 'break') {
+    return state.breakDuration * 60;
+  }
+
+  if (mode === 'longBreak') {
+    return state.longBreakDuration * 60;
+  }
+
+  return state.workDuration * 60;
+}
+
+function normalizePomodoroState(rawState = {}) {
+  const defaults = getDefaultPomodoroState();
+  const mode = rawState.mode === 'break' || rawState.mode === 'longBreak' ? rawState.mode : 'work';
+  const status = rawState.status === 'running' || rawState.status === 'paused' ? rawState.status : 'idle';
+  const workDuration = Number.parseInt(rawState.workDuration, 10);
+  const breakDuration = Number.parseInt(rawState.breakDuration, 10);
+  const longBreakDuration = Number.parseInt(rawState.longBreakDuration, 10);
+  const remainingSeconds = Number.parseInt(rawState.remainingSeconds, 10);
+  const normalized = {
+    ...defaults,
+    ...rawState,
+    mode,
+    status,
+    endTime: typeof rawState.endTime === 'number' ? rawState.endTime : null,
+    workDuration: Number.isFinite(workDuration) && workDuration > 0 ? workDuration : defaults.workDuration,
+    breakDuration: Number.isFinite(breakDuration) && breakDuration > 0 ? breakDuration : defaults.breakDuration,
+    longBreakDuration: Number.isFinite(longBreakDuration) && longBreakDuration > 0 ? longBreakDuration : defaults.longBreakDuration,
+    sessionsCompleted: Number.isFinite(rawState.sessionsCompleted) && rawState.sessionsCompleted >= 0
+      ? Math.min(rawState.sessionsCompleted, 3)
+      : defaults.sessionsCompleted,
+    transitionAt: typeof rawState.transitionAt === 'number' ? rawState.transitionAt : null,
+    transitionTitle: typeof rawState.transitionTitle === 'string' ? rawState.transitionTitle : '',
+    transitionBody: typeof rawState.transitionBody === 'string' ? rawState.transitionBody : '',
+  };
+
+  normalized.remainingSeconds = Number.isFinite(remainingSeconds) && remainingSeconds >= 0
+    ? remainingSeconds
+    : getPomodoroModeDurationSeconds(normalized, mode);
+
+  if (normalized.status !== 'running') {
+    normalized.endTime = null;
+  }
+
+  return normalized;
+}
+
+function hasChromePomodoroMessaging() {
+  return typeof chrome !== 'undefined' && !!(chrome.runtime?.sendMessage && chrome.storage?.onChanged);
+}
+
+async function getSharedPomodoroState() {
+  if (!hasChromePomodoroMessaging()) {
+    return normalizePomodoroState(JSON.parse(localStorage.getItem(POMODORO_STATE_KEY) || 'null') || {});
+  }
+
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: 'pomodoro:getState' }, (response) => {
+      if (chrome.runtime?.lastError || response?.error) {
+        console.error('Error loading Pomodoro state:', chrome.runtime?.lastError || response?.error);
+        resolve(getDefaultPomodoroState());
+        return;
+      }
+
+      resolve(normalizePomodoroState(response?.state));
+    });
+  });
+}
+
+async function setSharedPomodoroState(nextState) {
+  const normalized = normalizePomodoroState(nextState);
+
+  if (!hasChromePomodoroMessaging()) {
+    localStorage.setItem(POMODORO_STATE_KEY, JSON.stringify(normalized));
+    return normalized;
+  }
+
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: 'pomodoro:setState', state: normalized }, (response) => {
+      if (chrome.runtime?.lastError || response?.error) {
+        reject(new Error(chrome.runtime?.lastError?.message || response?.error || 'Failed to save Pomodoro state'));
+        return;
+      }
+
+      resolve(normalizePomodoroState(response?.state));
+    });
+  });
 }
 
 // Veil color presets
@@ -213,58 +315,153 @@ function updateVeil(color, opacity) {
   veilElement.style.background = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
 }
 
-function updateVeilPreview(color, opacity) {
-  const rgb = VEIL_COLORS[color];
-  const alpha = opacity / 100;
-  veilPreview.style.background = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+function getSelectedWeatherMode() {
+  const selected = Array.from(weatherModeInputs).find((input) => input.checked);
+  return selected?.value === 'auto' ? 'auto' : 'manual';
 }
 
-// Extract video ID from YouTube URL or raw ID
-function extractVideoId(url) {
+function setSelectedWeatherMode(mode) {
+  weatherModeInputs.forEach((input) => {
+    input.checked = input.value === mode;
+  });
+}
+
+function updateWeatherSettingsVisibility() {
+  const isAuto = getSelectedWeatherMode() === 'auto';
+  weatherCityRow.style.display = isAuto ? 'none' : 'block';
+}
+
+function extractYouTubeSource(url) {
   if (!url) return null;
 
   const trimmed = url.trim();
 
-  // If it's already just an 11-character ID, return it
-  if (!trimmed.includes('youtube.com') && !trimmed.includes('youtu.be') && trimmed.length === 11) {
-    return trimmed;
+  if (!trimmed.includes('youtube.com') && !trimmed.includes('youtu.be')) {
+    if (trimmed.length === 11) {
+      return { type: 'video', videoId: trimmed };
+    }
+
+    return null;
   }
 
   try {
     const parsed = new URL(trimmed);
     const host = parsed.hostname.replace(/^www\./, '');
+    const listId = parsed.searchParams.get('list');
+    const watchVideoId = parsed.searchParams.get('v');
+    const index = parsed.searchParams.get('index');
 
-    // Short links like https://youtu.be/<id>
     if (host === 'youtu.be') {
-      const shortId = parsed.pathname.replace(/^\//, '').split('/')[0];
-      return shortId || null;
+      const shortId = parsed.pathname.replace(/^\//, '').split('/')[0] || null;
+
+      if (listId) {
+        return {
+          type: 'playlist',
+          playlistId: listId,
+          videoId: shortId,
+          index
+        };
+      }
+
+      return shortId ? { type: 'video', videoId: shortId } : null;
     }
 
     if (host.endsWith('youtube.com')) {
-      // Standard watch URLs
-      const searchId = parsed.searchParams.get('v');
-      if (searchId) return searchId;
+      if (listId) {
+        let playlistVideoId = watchVideoId;
+        const segments = parsed.pathname.split('/').filter(Boolean);
+        const [first, second] = segments;
+
+        if (!playlistVideoId && first === 'embed' && second && second !== 'videoseries') playlistVideoId = second;
+        if (!playlistVideoId && first === 'live' && second) playlistVideoId = second;
+        if (!playlistVideoId && first === 'shorts' && second) playlistVideoId = second;
+
+        return {
+          type: 'playlist',
+          playlistId: listId,
+          videoId: playlistVideoId || null,
+          index
+        };
+      }
+
+      if (watchVideoId) {
+        return { type: 'video', videoId: watchVideoId };
+      }
 
       const segments = parsed.pathname.split('/').filter(Boolean);
       if (segments.length === 0) return null;
 
       const [first, second] = segments;
-      if (first === 'embed' && second) return second;
-      if (first === 'live' && second) return second;
-      if (first === 'shorts' && second) return second;
+      if (first === 'embed' && second && second !== 'videoseries') return { type: 'video', videoId: second };
+      if (first === 'live' && second) return { type: 'video', videoId: second };
+      if (first === 'shorts' && second) return { type: 'video', videoId: second };
+      if (first === 'playlist') return null;
     }
   } catch (error) {
     console.warn('Error parsing YouTube URL:', error);
   }
 
-  // Fallback regex checks for unusual formats
+  const listMatch = trimmed.match(/[?&]list=([^&]+)/);
+  if (listMatch) {
+    const watchMatch = trimmed.match(/[?&]v=([^&]+)/);
+    const indexMatch = trimmed.match(/[?&]index=([^&]+)/);
+
+    return {
+      type: 'playlist',
+      playlistId: listMatch[1],
+      videoId: watchMatch ? watchMatch[1] : null,
+      index: indexMatch ? indexMatch[1] : null
+    };
+  }
+
   const watchMatch = trimmed.match(/[?&]v=([^&]+)/);
-  if (watchMatch) return watchMatch[1];
+  if (watchMatch) return { type: 'video', videoId: watchMatch[1] };
 
   const pathMatch = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed|live|shorts)\/)([^?&]+)/);
-  if (pathMatch) return pathMatch[1];
+  if (pathMatch) return { type: 'video', videoId: pathMatch[1] };
 
   return null;
+}
+
+function getYouTubeSourceKey(source) {
+  if (!source) return '';
+
+  if (source.type === 'playlist') {
+    const indexPart = source.index ? `:${source.index}` : '';
+    const videoPart = source.videoId ? `:${source.videoId}` : '';
+    return `playlist:${source.playlistId}${videoPart}${indexPart}`;
+  }
+
+  return `video:${source.videoId}`;
+}
+
+function buildYouTubeEmbedSrc(source) {
+  const baseParams = new URLSearchParams({
+    autoplay: '1',
+    mute: '1',
+    controls: '0',
+    modestbranding: '1',
+    rel: '0',
+    showinfo: '0',
+    playsinline: '1',
+    iv_load_policy: '3',
+    enablejsapi: '1',
+    loop: '1',
+  });
+
+  if (source.type === 'playlist') {
+    baseParams.set('listType', 'playlist');
+    baseParams.set('list', source.playlistId);
+    if (source.index) {
+      baseParams.set('index', source.index);
+    }
+
+    const embedPath = source.videoId ? source.videoId : 'videoseries';
+    return `https://www.youtube.com/embed/${embedPath}?${baseParams.toString()}`;
+  }
+
+  baseParams.set('playlist', source.videoId);
+  return `https://www.youtube.com/embed/${source.videoId}?${baseParams.toString()}`;
 }
 
 // Load saved video URL from localStorage
@@ -273,9 +470,9 @@ async function loadSettings() {
 
   const savedUrl = localStorage.getItem('videoUrl') || `https://www.youtube.com/watch?v=${DEFAULT_VIDEO_ID}`;
   streamUrlInput.value = savedUrl;
-  const videoId = extractVideoId(savedUrl);
-  if (videoId) {
-    updateIframeSrc(videoId, true);
+  const source = extractYouTubeSource(savedUrl);
+  if (source) {
+    updateIframeSrc(source, true);
   }
 
   // Load 24-hour clock preference
@@ -285,17 +482,27 @@ async function loadSettings() {
   useFahrenheit = localStorage.getItem('useFahrenheit') === 'true';
   useFahrenheitCheckbox.checked = useFahrenheit;
 
-  // Load weather settings
-  const savedCity = localStorage.getItem('weatherCity');
-  if (savedCity) {
-    weatherCityInput.value = savedCity;
-    fetchWeather(savedCity);
-  }
+  const weatherMode = localStorage.getItem('weatherMode') === 'manual' ? 'manual' : 'auto';
+  setSelectedWeatherMode(weatherMode);
+  updateWeatherSettingsVisibility();
 
   // Load show weather preference
   const showWeather = localStorage.getItem('showWeather') !== 'false'; // default true
   showWeatherCheckbox.checked = showWeather;
   document.getElementById('weather').style.display = showWeather ? 'block' : 'none';
+
+  // Load weather settings
+  const savedCity = localStorage.getItem('weatherCity');
+  if (savedCity) {
+    weatherCityInput.value = savedCity;
+  }
+
+  if (showWeather) {
+    refreshWeather();
+  } else {
+    setWeatherPlaceholder();
+  }
+  startWeatherRefreshLoop();
 
   // Load position settings
   const clockPos = localStorage.getItem('clockPosition') || '10';
@@ -322,9 +529,10 @@ async function loadSettings() {
   }
 
   // Load Pomodoro settings
-  pomodoroWorkDuration = parseInt(localStorage.getItem('pomodoroWork') || '25');
-  pomodoroBreakDuration = parseInt(localStorage.getItem('pomodoroBreak') || '5');
-  pomodoroLongBreakDuration = parseInt(localStorage.getItem('pomodoroLongBreak') || '15');
+  const sharedPomodoroState = await getSharedPomodoroState();
+  pomodoroWorkDuration = sharedPomodoroState.workDuration;
+  pomodoroBreakDuration = sharedPomodoroState.breakDuration;
+  pomodoroLongBreakDuration = sharedPomodoroState.longBreakDuration;
   pomodoroPulseSpeed = parseFloat(localStorage.getItem('pomodoroPulseSpeed') || '3');
   pomodoroWorkInput.value = pomodoroWorkDuration;
   pomodoroBreakInput.value = pomodoroBreakDuration;
@@ -350,17 +558,16 @@ async function loadSettings() {
   const activeSwatch = Array.from(veilSwatches).find(s => s.dataset.color === currentVeilColor);
   if (activeSwatch) activeSwatch.classList.add('active');
 
-  // Apply veil and update preview
+  // Apply veil
   updateVeil(currentVeilColor, currentVeilOpacity);
-  updateVeilPreview(currentVeilColor, currentVeilOpacity);
 
-  resetPomodoro();
+  setPomodoroState(sharedPomodoroState);
   updateClock();
 }
 
-// Update iframe src with new video ID
-function updateIframeSrc(videoId, videoChanged = false) {
-  const newSrc = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&showinfo=0&playsinline=1&iv_load_policy=3&enablejsapi=1&loop=1&playlist=${videoId}`;
+// Update iframe src with a video or playlist source
+function updateIframeSrc(source, videoChanged = false) {
+  const newSrc = buildYouTubeEmbedSrc(source);
 
   // Only reload iframe if video actually changed
   if (videoChanged) {
@@ -392,7 +599,6 @@ veilOpacityInput.addEventListener('input', (e) => {
   const opacity = parseInt(e.target.value);
   currentVeilOpacity = opacity;
   veilOpacityValue.textContent = `${opacity}%`;
-  updateVeilPreview(currentVeilColor, opacity);
 });
 
 // Veil color swatches
@@ -404,8 +610,11 @@ veilSwatches.forEach(swatch => {
     swatch.classList.add('active');
 
     currentVeilColor = swatch.dataset.color;
-    updateVeilPreview(currentVeilColor, currentVeilOpacity);
   });
+});
+
+weatherModeInputs.forEach((input) => {
+  input.addEventListener('change', updateWeatherSettingsVisibility);
 });
 
 // Reset veil to default
@@ -422,16 +631,10 @@ resetVeilBtn.addEventListener('click', () => {
   veilSwatches.forEach(s => s.classList.remove('active'));
   const defaultSwatch = Array.from(veilSwatches).find(s => s.dataset.color === DEFAULT_VEIL_COLOR);
   if (defaultSwatch) defaultSwatch.classList.add('active');
-
-  // Update preview
-  updateVeilPreview(currentVeilColor, currentVeilOpacity);
-
-  console.log('Veil reset to defaults: gray, 45%');
 });
 
 // Open settings modal
 settingsBtn.addEventListener('click', async () => {
-  console.log('Settings button clicked!');
   settingsModal.classList.add('show');
 
   // Load cached "lofi" results if available
@@ -460,19 +663,19 @@ settingsModal.addEventListener('click', (e) => {
 });
 
 // Save settings
-saveSettings.addEventListener('click', () => {
+saveSettings.addEventListener('click', async () => {
   const url = streamUrlInput.value.trim() || `https://www.youtube.com/watch?v=${DEFAULT_VIDEO_ID}`;
-  const videoId = extractVideoId(url);
+  const source = extractYouTubeSource(url);
 
-  if (!videoId) {
-    alert('Invalid YouTube URL. Please check and try again.');
+  if (!source) {
+    alert('Invalid YouTube video or playlist URL. Please check and try again.');
     return;
   }
 
   // Check if video URL actually changed
   const oldUrl = localStorage.getItem('videoUrl') || `https://www.youtube.com/watch?v=${DEFAULT_VIDEO_ID}`;
-  const oldVideoId = extractVideoId(oldUrl);
-  const videoChanged = videoId !== oldVideoId;
+  const oldSource = extractYouTubeSource(oldUrl);
+  const videoChanged = getYouTubeSourceKey(source) !== getYouTubeSourceKey(oldSource);
 
   localStorage.setItem('videoUrl', url);
   localStorage.setItem('use24Hour', use24hCheckbox.checked);
@@ -484,17 +687,23 @@ saveSettings.addEventListener('click', () => {
   document.getElementById('weather').style.display = showWeather ? 'block' : 'none';
 
   // Save weather settings
+  const weatherMode = getSelectedWeatherMode();
+  localStorage.setItem('weatherMode', weatherMode);
   const city = weatherCityInput.value.trim();
   if (city) {
     localStorage.setItem('weatherCity', city);
-    useFahrenheit = useFahrenheitCheckbox.checked;
-    localStorage.setItem('useFahrenheit', useFahrenheit);
-    fetchWeather(city);
   } else {
     localStorage.removeItem('weatherCity');
-    document.getElementById('weatherTemp').textContent = 'Set location in settings';
-    document.getElementById('weatherCity').textContent = '';
   }
+  useFahrenheit = useFahrenheitCheckbox.checked;
+  localStorage.setItem('useFahrenheit', useFahrenheit);
+
+  if (showWeather) {
+    await refreshWeather();
+  } else {
+    setWeatherPlaceholder();
+  }
+  startWeatherRefreshLoop();
 
   // Save position settings
   const clockPos = clockPositionInput.value || '10';
@@ -523,15 +732,30 @@ saveSettings.addEventListener('click', () => {
   pomodoroBreakDuration = parseInt(pomodoroBreakInput.value || '5');
   pomodoroLongBreakDuration = parseInt(pomodoroLongBreakInput.value || '15');
   pomodoroPulseSpeed = parseFloat(pomodoroPulseSpeedInput.value || '3');
-  localStorage.setItem('pomodoroWork', pomodoroWorkDuration);
-  localStorage.setItem('pomodoroBreak', pomodoroBreakDuration);
-  localStorage.setItem('pomodoroLongBreak', pomodoroLongBreakDuration);
   localStorage.setItem('pomodoroPulseSpeed', pomodoroPulseSpeed);
 
   // Apply pulse speed to CSS
   document.documentElement.style.setProperty('--pom-pulse-speed', `${pomodoroPulseSpeed}s`);
 
-  resetPomodoro();
+  try {
+    const nextPomodoroState = await setSharedPomodoroState({
+      ...pomodoroState,
+      status: 'idle',
+      mode: 'work',
+      endTime: null,
+      remainingSeconds: pomodoroWorkDuration * 60,
+      sessionsCompleted: 0,
+      workDuration: pomodoroWorkDuration,
+      breakDuration: pomodoroBreakDuration,
+      longBreakDuration: pomodoroLongBreakDuration,
+      transitionAt: null,
+      transitionTitle: '',
+      transitionBody: '',
+    });
+    setPomodoroState(nextPomodoroState);
+  } catch (error) {
+    console.error('Failed to save Pomodoro settings:', error);
+  }
 
   // Save veil settings
   localStorage.setItem('veilOpacity', currentVeilOpacity);
@@ -540,10 +764,9 @@ saveSettings.addEventListener('click', () => {
 
   // Note: API key is now saved separately via the Save button, not here
 
-  updateIframeSrc(videoId, videoChanged);
+  updateIframeSrc(source, videoChanged);
   updateClock();
   settingsModal.classList.remove('show');
-  console.log('Settings saved. Video ID:', videoId, '24h:', use24Hour, 'City:', city, 'Fahrenheit:', useFahrenheit, 'Clock:', clockPos, 'Info:', infoPos, 'Time override:', overrideTimeValue);
 });
 
 document.addEventListener('keydown', (e) => {
@@ -559,9 +782,18 @@ document.addEventListener('keydown', (e) => {
 // Weather functionality
 let weatherData = null;
 let useFahrenheit = false;
+let weatherRefreshInterval = null;
 
 const WEATHER_CACHE_KEY = 'weatherCache';
 const WEATHER_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const WEATHER_LOCATION_CACHE_KEY = 'weatherLocationCache';
+const WEATHER_LOCATION_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+function setWeatherPlaceholder(tempText = 'Set location in settings', cityText = '') {
+  weatherData = null;
+  document.getElementById('weatherTemp').textContent = tempText;
+  document.getElementById('weatherCity').textContent = cityText;
+}
 
 function getWeatherCache() {
   try {
@@ -581,15 +813,48 @@ function saveWeatherCache(cache) {
   }
 }
 
-function makeWeatherCacheId(city, fahrenheit) {
-  return `${city.trim().toLowerCase()}|${fahrenheit ? 'F' : 'C'}`;
+function getWeatherLocationCache() {
+  try {
+    const raw = localStorage.getItem(WEATHER_LOCATION_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.error('Failed to read weather location cache:', error);
+    return null;
+  }
 }
 
-function getCachedWeather(city) {
-  if (!city) return null;
+function saveWeatherLocationCache(location) {
+  try {
+    localStorage.setItem(WEATHER_LOCATION_CACHE_KEY, JSON.stringify({
+      ...location,
+      timestamp: Date.now()
+    }));
+  } catch (error) {
+    console.error('Failed to write weather location cache:', error);
+  }
+}
+
+function getCachedAutoLocation() {
+  const cached = getWeatherLocationCache();
+  if (!cached) return null;
+
+  if (Date.now() - cached.timestamp > WEATHER_LOCATION_CACHE_TTL) {
+    localStorage.removeItem(WEATHER_LOCATION_CACHE_KEY);
+    return null;
+  }
+
+  return cached;
+}
+
+function makeWeatherCacheId(locationKey, fahrenheit) {
+  return `${locationKey}|${fahrenheit ? 'F' : 'C'}`;
+}
+
+function getCachedWeather(locationKey) {
+  if (!locationKey) return null;
 
   const cache = getWeatherCache();
-  const cacheId = makeWeatherCacheId(city, useFahrenheit);
+  const cacheId = makeWeatherCacheId(locationKey, useFahrenheit);
   const entry = cache[cacheId];
 
   if (!entry) return null;
@@ -604,11 +869,11 @@ function getCachedWeather(city) {
   return entry.data;
 }
 
-function setCachedWeather(city, data) {
-  if (!city || !data) return;
+function setCachedWeather(locationKey, data) {
+  if (!locationKey || !data) return;
 
   const cache = getWeatherCache();
-  const cacheId = makeWeatherCacheId(city, useFahrenheit);
+  const cacheId = makeWeatherCacheId(locationKey, useFahrenheit);
   cache[cacheId] = {
     data,
     timestamp: Date.now()
@@ -616,41 +881,137 @@ function setCachedWeather(city, data) {
   saveWeatherCache(cache);
 }
 
-async function fetchWeather(city) {
-  try {
-    const cached = getCachedWeather(city);
-    if (cached) {
-      weatherData = cached;
-      updateWeatherDisplay();
-      return;
-    }
-
-    // First, geocode the city to get coordinates
-    const geoResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`);
-    const geoData = await geoResponse.json();
-
-    if (!geoData.results || geoData.results.length === 0) {
-      console.error('City not found');
-      return;
-    }
-
-    const { latitude, longitude, name } = geoData.results[0];
-
-    // Fetch weather data
-    const weatherResponse = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&temperature_unit=${useFahrenheit ? 'fahrenheit' : 'celsius'}`);
-    const weather = await weatherResponse.json();
-
-    weatherData = {
-      temp: Math.round(weather.current.temperature_2m),
-      code: weather.current.weather_code,
-      city: name
-    };
-
-    setCachedWeather(city, weatherData);
-    updateWeatherDisplay();
-  } catch (e) {
-    console.error('Error fetching weather:', e);
+async function geocodeWeatherCity(city) {
+  const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`);
+  if (!response.ok) {
+    throw new Error('Geocoding request failed');
   }
+
+  const geoData = await response.json();
+  if (!geoData.results || geoData.results.length === 0) {
+    throw new Error('City not found');
+  }
+
+  const { latitude, longitude, name } = geoData.results[0];
+  return { latitude, longitude, label: name };
+}
+
+async function getApproximateLocation() {
+  const cached = getCachedAutoLocation();
+  if (cached) {
+    return cached;
+  }
+
+  const response = await fetch('https://ifconfig.co/json');
+  if (!response.ok) {
+    throw new Error('Approximate location request failed');
+  }
+
+  const data = await response.json();
+  const latitude = Number.parseFloat(data.latitude);
+  const longitude = Number.parseFloat(data.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    throw new Error('Approximate location response missing coordinates');
+  }
+
+  const location = {
+    latitude,
+    longitude,
+    label: data.city || data.region || 'Current location'
+  };
+  saveWeatherLocationCache(location);
+  return location;
+}
+
+async function fetchWeatherForCoordinates(latitude, longitude, label, locationKey) {
+  const cached = getCachedWeather(locationKey);
+  if (cached) {
+    weatherData = cached;
+    updateWeatherDisplay();
+    return;
+  }
+
+  const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&temperature_unit=${useFahrenheit ? 'fahrenheit' : 'celsius'}`);
+  if (!response.ok) {
+    throw new Error('Weather request failed');
+  }
+
+  const weather = await response.json();
+  if (!weather.current) {
+    throw new Error('Weather response missing current data');
+  }
+
+  weatherData = {
+    temp: Math.round(weather.current.temperature_2m),
+    code: weather.current.weather_code,
+    city: label
+  };
+
+  setCachedWeather(locationKey, weatherData);
+  updateWeatherDisplay();
+}
+
+async function fetchWeatherByCity(city) {
+  const resolved = await geocodeWeatherCity(city);
+  const cacheKey = `city:${city.trim().toLowerCase()}`;
+  await fetchWeatherForCoordinates(resolved.latitude, resolved.longitude, resolved.label, cacheKey);
+}
+
+async function fetchWeatherByAutoLocation() {
+  const location = await getApproximateLocation();
+  const cacheKey = `coords:${location.latitude.toFixed(2)},${location.longitude.toFixed(2)}`;
+  await fetchWeatherForCoordinates(location.latitude, location.longitude, location.label, cacheKey);
+}
+
+async function refreshWeather() {
+  if (!showWeatherCheckbox.checked) {
+    return;
+  }
+
+  const weatherMode = getSelectedWeatherMode();
+  const savedCity = weatherCityInput.value.trim() || localStorage.getItem('weatherCity')?.trim() || '';
+
+  try {
+    if (weatherMode === 'auto') {
+      await fetchWeatherByAutoLocation();
+      return;
+    }
+
+    if (!savedCity) {
+      setWeatherPlaceholder();
+      return;
+    }
+
+    await fetchWeatherByCity(savedCity);
+  } catch (error) {
+    console.error('Error refreshing weather:', error);
+
+    if (weatherMode === 'auto' && savedCity) {
+      try {
+        await fetchWeatherByCity(savedCity);
+        return;
+      } catch (fallbackError) {
+        console.error('Error refreshing fallback city weather:', fallbackError);
+      }
+    }
+
+    setWeatherPlaceholder(
+      weatherMode === 'auto' ? "Couldn't detect location" : 'Weather unavailable',
+      weatherMode === 'auto' ? 'Open Settings to set a city manually.' : 'Check your city in Settings.'
+    );
+  }
+}
+
+function startWeatherRefreshLoop() {
+  if (weatherRefreshInterval) {
+    clearInterval(weatherRefreshInterval);
+  }
+
+  weatherRefreshInterval = setInterval(() => {
+    refreshWeather().catch((error) => {
+      console.error('Weather refresh loop failed:', error);
+    });
+  }, WEATHER_CACHE_TTL);
 }
 
 function getWeatherIcon(code) {
@@ -708,8 +1069,6 @@ async function validateAndSaveApiKey() {
 
     // Auto-search lofi after validation
     await searchLiveVideos('lofi');
-
-    console.log('API key validated and saved');
   } catch (error) {
     console.error('API key validation failed:', error);
     const friendlyMessage = error.message === 'Invalid API key'
@@ -848,7 +1207,6 @@ async function searchLiveVideos(query) {
   // Check cache first
   const cachedResults = getCachedSearch(query);
   if (cachedResults) {
-    console.log('Using cached results for:', query);
     renderVideoCards(cachedResults);
     return;
   }
@@ -909,13 +1267,8 @@ const pomodoroBtn = document.getElementById('pomodoroBtn');
 const pomodoroResetBtn = document.getElementById('pomodoroReset');
 const pomodoroDots = document.querySelectorAll('.pom-dot');
 
-let pomodoroInterval = null;
-let pomodoroTitleInterval = null;
-let pomodoroSecondsLeft = 0;
-let pomodoroMode = 'work'; // 'work', 'break', 'longBreak'
-let pomodoroSessionsCompleted = 0;
-let pomodoroRunning = false;
-let notificationPermission = 'default';
+let pomodoroRenderInterval = null;
+let pomodoroState = getDefaultPomodoroState();
 
 // Pomodoro settings (minutes)
 let pomodoroWorkDuration = 25;
@@ -923,60 +1276,53 @@ let pomodoroBreakDuration = 5;
 let pomodoroLongBreakDuration = 15;
 let pomodoroPulseSpeed = 3; // seconds
 
-// Request notification permission on first interaction
-async function requestNotificationPermission() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    notificationPermission = await Notification.requestPermission();
-    console.log('Notification permission:', notificationPermission);
-  } else if ('Notification' in window) {
-    notificationPermission = Notification.permission;
-  }
-}
-
-// Show desktop notification
-function showPomodoroNotification(title, body) {
-  if ('Notification' in window && Notification.permission === 'granted') {
-    const notification = new Notification(title, {
-      body: body,
-      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%23ff6b6b"/></svg>',
-      badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%23ff6b6b"/></svg>',
-      requireInteraction: false
-    });
-
-    // Auto-close after 10 seconds
-    setTimeout(() => notification.close(), 10000);
-  }
-}
-
 function formatPomodoroTime(seconds) {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+function getPomodoroSecondsLeft(state = pomodoroState) {
+  if (state.status === 'running' && state.endTime) {
+    return Math.max(0, Math.ceil((state.endTime - Date.now()) / 1000));
+  }
+
+  return state.remainingSeconds;
+}
+
+function getPomodoroButtonLabel(state = pomodoroState) {
+  if (state.status === 'running') {
+    return 'Pause';
+  }
+
+  if (state.status === 'paused') {
+    return 'Resume';
+  }
+
+  return state.mode === 'work' ? 'Start' : 'Start Break';
+}
+
 function updatePomodoroDots() {
   pomodoroDots.forEach((dot, index) => {
-    // Remove both classes first
     dot.classList.remove('completed', 'active');
 
-    if (index < pomodoroSessionsCompleted) {
-      // Completed sessions
+    if (index < pomodoroState.sessionsCompleted) {
       dot.classList.add('completed');
-    } else if (index === pomodoroSessionsCompleted && pomodoroRunning) {
-      // Current active session (only when running)
+    } else if (index === pomodoroState.sessionsCompleted && pomodoroState.status === 'running') {
       dot.classList.add('active');
     }
   });
 }
 
 function updatePomodoroTitle() {
-  if (!pomodoroRunning) {
+  if (pomodoroState.status !== 'running') {
     document.title = 'Lofi New Tab';
     return;
   }
 
-  const mins = Math.floor(pomodoroSecondsLeft / 60);
-  const secs = pomodoroSecondsLeft % 60;
+  const secondsLeft = getPomodoroSecondsLeft();
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
 
   if (mins > 0) {
     document.title = `Lofi New Tab - ${mins}m`;
@@ -985,143 +1331,113 @@ function updatePomodoroTitle() {
   }
 }
 
-function startTitleUpdates() {
-  // Clear any existing title update interval
-  if (pomodoroTitleInterval) {
-    clearInterval(pomodoroTitleInterval);
-  }
-
-  // Update title immediately
+function renderPomodoro() {
+  pomodoroTimer.textContent = formatPomodoroTime(getPomodoroSecondsLeft());
+  pomodoroBtn.textContent = getPomodoroButtonLabel();
+  updatePomodoroDots();
   updatePomodoroTitle();
-
-  // Set interval based on remaining time
-  const updateInterval = pomodoroSecondsLeft > 60 ? 60000 : 1000; // 1 min or 1 sec
-  pomodoroTitleInterval = setInterval(() => {
-    updatePomodoroTitle();
-
-    // Switch to second updates when under 1 minute
-    if (pomodoroSecondsLeft <= 60 && pomodoroTitleInterval) {
-      clearInterval(pomodoroTitleInterval);
-      pomodoroTitleInterval = setInterval(updatePomodoroTitle, 1000);
-    }
-  }, updateInterval);
 }
 
-function stopTitleUpdates() {
-  if (pomodoroTitleInterval) {
-    clearInterval(pomodoroTitleInterval);
-    pomodoroTitleInterval = null;
-  }
-  document.title = 'Lofi New Tab';
+function setPomodoroState(nextState) {
+  pomodoroState = normalizePomodoroState(nextState);
+  pomodoroWorkDuration = pomodoroState.workDuration;
+  pomodoroBreakDuration = pomodoroState.breakDuration;
+  pomodoroLongBreakDuration = pomodoroState.longBreakDuration;
+
+  renderPomodoro();
 }
 
-function startPomodoro() {
-  pomodoroRunning = true;
-  pomodoroBtn.textContent = 'Pause';
-
-  // Request notification permission on first start
-  if (notificationPermission === 'default') {
-    requestNotificationPermission();
+function startPomodoroRenderLoop() {
+  if (pomodoroRenderInterval) {
+    clearInterval(pomodoroRenderInterval);
   }
 
-  // Update dots to show active state
-  updatePomodoroDots();
-
-  // Start title updates
-  startTitleUpdates();
-
-  pomodoroInterval = setInterval(() => {
-    pomodoroSecondsLeft--;
-    pomodoroTimer.textContent = formatPomodoroTime(pomodoroSecondsLeft);
-    updatePomodoroTitle();
-
-    if (pomodoroSecondsLeft <= 0) {
-      clearInterval(pomodoroInterval);
-      pomodoroRunning = false;
-      stopTitleUpdates();
-
-      // Completed a session
-      if (pomodoroMode === 'work') {
-        pomodoroSessionsCompleted++;
-        updatePomodoroDots();
-
-        // Determine next mode
-        if (pomodoroSessionsCompleted >= 4) {
-          pomodoroMode = 'longBreak';
-          pomodoroSecondsLeft = pomodoroLongBreakDuration * 60;
-          pomodoroSessionsCompleted = 0; // Reset after long break
-          updatePomodoroDots();
-          showPomodoroNotification('Work session complete', `Time for a long break (${pomodoroLongBreakDuration} minutes)`);
-        } else {
-          pomodoroMode = 'break';
-          pomodoroSecondsLeft = pomodoroBreakDuration * 60;
-          showPomodoroNotification('Work session complete', `Time for a break (${pomodoroBreakDuration} minutes)`);
-        }
-        pomodoroBtn.textContent = 'Start Break';
-      } else {
-        // Break finished, back to work
-        pomodoroMode = 'work';
-        pomodoroSecondsLeft = pomodoroWorkDuration * 60;
-        pomodoroBtn.textContent = 'Start';
-        showPomodoroNotification('Break complete', `Ready to work? (${pomodoroWorkDuration} minutes)`);
-      }
-
-      pomodoroTimer.textContent = formatPomodoroTime(pomodoroSecondsLeft);
-    }
-  }, 1000);
+  pomodoroRenderInterval = setInterval(renderPomodoro, 1000);
+  renderPomodoro();
 }
 
-function pausePomodoro() {
-  pomodoroRunning = false;
-  clearInterval(pomodoroInterval);
-  pomodoroBtn.textContent = 'Resume';
-  stopTitleUpdates();
-  updatePomodoroDots(); // Remove active state when paused
+async function persistPomodoroState(nextState) {
+  const savedState = await setSharedPomodoroState(nextState);
+  setPomodoroState(savedState);
+  return savedState;
 }
 
-function resetPomodoro() {
-  pomodoroRunning = false;
-  clearInterval(pomodoroInterval);
-  stopTitleUpdates();
-  pomodoroMode = 'work';
-  pomodoroSecondsLeft = pomodoroWorkDuration * 60;
-  pomodoroTimer.textContent = formatPomodoroTime(pomodoroSecondsLeft);
-  pomodoroBtn.textContent = 'Start';
-  pomodoroSessionsCompleted = 0;
-  updatePomodoroDots();
+async function startPomodoro() {
+  const secondsLeft = getPomodoroSecondsLeft();
+  await persistPomodoroState({
+    ...pomodoroState,
+    status: 'running',
+    endTime: Date.now() + (secondsLeft * 1000),
+    remainingSeconds: secondsLeft,
+    transitionAt: null,
+    transitionTitle: '',
+    transitionBody: '',
+  });
 }
 
-pomodoroBtn.addEventListener('click', () => {
-  if (!pomodoroRunning) {
-    if (pomodoroSecondsLeft === 0 || pomodoroBtn.textContent === 'Start' || pomodoroBtn.textContent === 'Start Break') {
-      // Starting fresh or after a break
-      if (pomodoroSecondsLeft === 0) {
-        pomodoroSecondsLeft = pomodoroWorkDuration * 60;
-      }
-      startPomodoro();
-    } else {
-      // Resuming
-      startPomodoro();
-    }
+async function pausePomodoro() {
+  await persistPomodoroState({
+    ...pomodoroState,
+    status: 'paused',
+    endTime: null,
+    remainingSeconds: getPomodoroSecondsLeft(),
+    transitionAt: null,
+    transitionTitle: '',
+    transitionBody: '',
+  });
+}
+
+async function resetPomodoro() {
+  await persistPomodoroState({
+    ...pomodoroState,
+    status: 'idle',
+    mode: 'work',
+    endTime: null,
+    remainingSeconds: pomodoroWorkDuration * 60,
+    sessionsCompleted: 0,
+    transitionAt: null,
+    transitionTitle: '',
+    transitionBody: '',
+  });
+}
+
+pomodoroBtn.addEventListener('click', async () => {
+  if (pomodoroState.status === 'running') {
+    await pausePomodoro();
   } else {
-    pausePomodoro();
+    await startPomodoro();
   }
 });
 
 // Reset button click
-pomodoroResetBtn.addEventListener('click', () => {
-  resetPomodoro();
-  console.log('Pomodoro reset via button');
+pomodoroResetBtn.addEventListener('click', async () => {
+  await resetPomodoro();
 });
 
 // Double-click timer to reset
-pomodoroTimer.addEventListener('dblclick', () => {
-  resetPomodoro();
-  console.log('Pomodoro reset via double-click');
+pomodoroTimer.addEventListener('dblclick', async () => {
+  await resetPomodoro();
 });
 
-// Initialize pomodoro
-resetPomodoro();
+if (hasChromePomodoroMessaging()) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !changes[POMODORO_STATE_KEY]?.newValue) {
+      return;
+    }
+
+    setPomodoroState(changes[POMODORO_STATE_KEY].newValue);
+  });
+} else {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== POMODORO_STATE_KEY || !event.newValue) {
+      return;
+    }
+
+    setPomodoroState(JSON.parse(event.newValue));
+  });
+}
+
+startPomodoroRenderLoop();
 
 // Fullscreen toggle
 fullscreenBtn.addEventListener('click', () => {
