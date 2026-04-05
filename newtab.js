@@ -123,6 +123,138 @@ const editApiKeyBtn = document.getElementById('editApiKey');
 const apiKeyInputContainer = document.getElementById('apiKeyInput');
 const apiKeyConfiguredContainer = document.getElementById('apiKeyConfigured');
 
+const fontSelectTrigger = document.getElementById('fontSelectTrigger');
+const fontSelectLabel = document.getElementById('fontSelectLabel');
+const fontSelectDropdown = document.getElementById('fontSelectDropdown');
+let selectedFontKey = 'system';
+const inlineTodoEl = document.getElementById('inlineTodo');
+const inlineTodoInput = document.getElementById('inlineTodoInput');
+const inlineTodoListEl = document.getElementById('inlineTodoList');
+const showInlineTodoCheckbox = document.getElementById('showInlineTodo');
+const inlineTodoMore = document.getElementById('inlineTodoMore');
+const inlineTodoClear = document.getElementById('inlineTodoClear');
+const inlineTodoClearAll = document.getElementById('inlineTodoClearAll');
+const inlineTodoCount = document.getElementById('inlineTodoCount');
+const inlineTodoToast = document.getElementById('inlineTodoToast');
+const inlineTodoToastMessage = document.getElementById('inlineTodoToastMessage');
+const inlineTodoUndo = document.getElementById('inlineTodoUndo');
+
+const FONT_OPTIONS = {
+  'system': {
+    label: 'System Default',
+    family: 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
+    google: null
+  },
+  'inter': {
+    label: 'Inter',
+    family: '"Inter", sans-serif',
+    google: 'Inter:wght@400;500;700'
+  },
+  'nunito': {
+    label: 'Nunito',
+    family: '"Nunito", sans-serif',
+    google: 'Nunito:wght@400;500;700'
+  },
+  'poppins': {
+    label: 'Poppins',
+    family: '"Poppins", sans-serif',
+    google: 'Poppins:wght@400;500;700'
+  },
+  'outfit': {
+    label: 'Outfit',
+    family: '"Outfit", sans-serif',
+    google: 'Outfit:wght@400;500;700'
+  },
+  'space-grotesk': {
+    label: 'Space Grotesk',
+    family: '"Space Grotesk", sans-serif',
+    google: 'Space+Grotesk:wght@400;500;700'
+  },
+  'quicksand': {
+    label: 'Quicksand',
+    family: '"Quicksand", sans-serif',
+    google: 'Quicksand:wght@400;500;700'
+  },
+  'comfortaa': {
+    label: 'Comfortaa',
+    family: '"Comfortaa", cursive',
+    google: 'Comfortaa:wght@400;500;700'
+  },
+  'lora': {
+    label: 'Lora',
+    family: '"Lora", serif',
+    google: 'Lora:wght@400;500;700'
+  },
+  'playfair': {
+    label: 'Playfair Display',
+    family: '"Playfair Display", serif',
+    google: 'Playfair+Display:wght@400;500;700'
+  },
+  'dm-serif': {
+    label: 'DM Serif Display',
+    family: '"DM Serif Display", serif',
+    google: 'DM+Serif+Display'
+  },
+  'jetbrains-mono': {
+    label: 'JetBrains Mono',
+    family: '"JetBrains Mono", monospace',
+    google: 'JetBrains+Mono:wght@400;500;700'
+  },
+  'caveat': {
+    label: 'Caveat',
+    family: '"Caveat", cursive',
+    google: 'Caveat:wght@400;500;700'
+  }
+};
+
+function applyFont(fontKey) {
+  const font = FONT_OPTIONS[fontKey];
+  if (!font) return;
+
+  document.documentElement.style.setProperty('--font', font.family);
+}
+
+function buildFontDropdown() {
+  fontSelectDropdown.innerHTML = '';
+  Object.entries(FONT_OPTIONS).forEach(([key, font]) => {
+    const opt = document.createElement('div');
+    opt.className = 'font-select-option' + (key === selectedFontKey ? ' selected' : '');
+    opt.dataset.value = key;
+    opt.textContent = font.label;
+    if (font.google) {
+      opt.style.fontFamily = font.family;
+    }
+    opt.addEventListener('click', () => {
+      selectedFontKey = key;
+      updateFontSelectDisplay();
+      fontSelectDropdown.querySelectorAll('.font-select-option').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+      fontSelectDropdown.classList.remove('open');
+    });
+    fontSelectDropdown.appendChild(opt);
+  });
+}
+
+function updateFontSelectDisplay() {
+  const font = FONT_OPTIONS[selectedFontKey];
+  if (font) {
+    fontSelectLabel.textContent = font.label;
+    fontSelectTrigger.style.fontFamily = font.google ? font.family : '';
+  }
+}
+
+fontSelectTrigger.addEventListener('click', (e) => {
+  e.stopPropagation();
+  buildFontDropdown();
+  fontSelectDropdown.classList.toggle('open');
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.font-select')) {
+    fontSelectDropdown.classList.remove('open');
+  }
+});
+
 const DEFAULT_VIDEO_ID = 'jfKfPfyJRdk';
 
 const STORAGE_KEYS = {
@@ -563,6 +695,20 @@ async function loadSettings() {
 
   setPomodoroState(sharedPomodoroState);
   updateClock();
+
+  // Load font preference
+  const savedFont = localStorage.getItem('selectedFont') || 'system';
+  selectedFontKey = savedFont;
+  updateFontSelectDisplay();
+  applyFont(savedFont);
+
+  // Load inline todo
+  const showInlineTodo = localStorage.getItem('showInlineTodo') !== 'false';
+  showInlineTodoCheckbox.checked = showInlineTodo;
+  inlineTodoEl.style.display = showInlineTodo ? 'block' : 'none';
+
+  loadTodos();
+  renderInlineTodos();
 }
 
 // Update iframe src with a video or playlist source
@@ -761,6 +907,15 @@ saveSettings.addEventListener('click', async () => {
   localStorage.setItem('veilOpacity', currentVeilOpacity);
   localStorage.setItem('veilColor', currentVeilColor);
   updateVeil(currentVeilColor, currentVeilOpacity);
+
+  // Save font
+  localStorage.setItem('selectedFont', selectedFontKey);
+  applyFont(selectedFontKey);
+
+  // Save inline todo visibility
+  const showInlineTodoSetting = showInlineTodoCheckbox.checked;
+  localStorage.setItem('showInlineTodo', showInlineTodoSetting);
+  inlineTodoEl.style.display = showInlineTodoSetting ? 'block' : 'none';
 
   // Note: API key is now saved separately via the Save button, not here
 
@@ -1478,6 +1633,218 @@ chrome.storage.local.get(['showChangelog'], (result) => {
 
     // Show the modal
     changelogModal.classList.add('show');
+  }
+});
+
+// === Todo ===
+let todos = [];
+let todoUndoSnapshot = null;
+let todoUndoTimeout = null;
+
+function loadTodos() {
+  try {
+    todos = JSON.parse(localStorage.getItem('todos') || '[]');
+  } catch { todos = []; }
+}
+
+function saveTodos() {
+  localStorage.setItem('todos', JSON.stringify(todos));
+  updateTodoCount();
+}
+
+function updateTodoCount() {
+  const remaining = todos.filter(t => !t.completed).length;
+  const completedCount = todos.length - remaining;
+  inlineTodoCount.textContent = remaining > 0 ? remaining : '';
+  inlineTodoClear.disabled = completedCount === 0;
+  inlineTodoClearAll.disabled = todos.length === 0;
+}
+
+function cloneTodos(items) {
+  return items.map((todo) => ({ ...todo }));
+}
+
+function hideTodoToast() {
+  inlineTodoToast.classList.remove('visible');
+  todoUndoSnapshot = null;
+  if (todoUndoTimeout) {
+    clearTimeout(todoUndoTimeout);
+    todoUndoTimeout = null;
+  }
+}
+
+function showTodoUndoToast(message, snapshot) {
+  todoUndoSnapshot = cloneTodos(snapshot);
+  inlineTodoToastMessage.textContent = message;
+  inlineTodoToast.classList.add('visible');
+
+  if (todoUndoTimeout) {
+    clearTimeout(todoUndoTimeout);
+  }
+
+  todoUndoTimeout = setTimeout(() => {
+    inlineTodoToast.classList.remove('visible');
+    todoUndoSnapshot = null;
+    todoUndoTimeout = null;
+  }, 5000);
+}
+
+function restoreTodoUndoSnapshot() {
+  if (!todoUndoSnapshot) {
+    return;
+  }
+
+  todos = cloneTodos(todoUndoSnapshot);
+  saveTodos();
+  renderInlineTodos();
+  hideTodoToast();
+}
+
+function updateTodoMoreIndicator() {
+  const el = inlineTodoListEl;
+  const hasOverflow = el.scrollHeight > el.clientHeight;
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 4;
+  inlineTodoMore.classList.toggle('visible', hasOverflow && !atBottom);
+}
+
+inlineTodoListEl.addEventListener('scroll', updateTodoMoreIndicator);
+inlineTodoUndo.addEventListener('click', restoreTodoUndoSnapshot);
+
+inlineTodoMore.addEventListener('click', () => {
+  inlineTodoListEl.scrollBy({ top: 80, behavior: 'smooth' });
+});
+
+function renderInlineTodos() {
+  while (inlineTodoListEl.firstChild) inlineTodoListEl.removeChild(inlineTodoListEl.firstChild);
+
+  if (todos.length === 0) {
+    const emptyState = document.createElement('li');
+    emptyState.className = 'inline-todo-empty';
+    emptyState.textContent = 'No tasks yet';
+    inlineTodoListEl.appendChild(emptyState);
+    inlineTodoMore.classList.remove('visible');
+    updateTodoCount();
+    return;
+  }
+
+  todos.forEach((todo, index) => {
+    const li = document.createElement('li');
+    li.className = `inline-todo-item${todo.completed ? ' completed' : ''}`;
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = todo.completed;
+    checkbox.addEventListener('change', () => {
+      hideTodoToast();
+      todos[index].completed = checkbox.checked;
+      li.classList.toggle('completed', checkbox.checked);
+      saveTodos();
+    });
+
+    const text = document.createElement('span');
+    text.className = 'inline-todo-item-text';
+    text.textContent = todo.text;
+    text.contentEditable = true;
+    text.spellcheck = false;
+    text.addEventListener('focus', () => {
+      text.dataset.originalText = todo.text;
+      delete text.dataset.cancelEdit;
+    });
+    text.addEventListener('blur', () => {
+      const originalText = text.dataset.originalText ?? todo.text;
+      if (text.dataset.cancelEdit === 'true') {
+        text.textContent = originalText;
+        delete text.dataset.cancelEdit;
+        delete text.dataset.originalText;
+        return;
+      }
+
+      const newText = text.textContent.trim();
+      if (newText && newText !== todo.text) {
+        hideTodoToast();
+        todos[index].text = newText;
+        saveTodos();
+      } else if (!newText) {
+        text.textContent = originalText;
+      }
+      delete text.dataset.originalText;
+    });
+    text.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        text.blur();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        text.dataset.cancelEdit = 'true';
+        text.textContent = text.dataset.originalText ?? todo.text;
+        text.blur();
+      }
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'inline-todo-item-delete';
+    deleteBtn.textContent = '✕';
+    deleteBtn.addEventListener('click', () => {
+      const previousTodos = cloneTodos(todos);
+      todos.splice(index, 1);
+      saveTodos();
+      renderInlineTodos();
+      showTodoUndoToast('Task deleted', previousTodos);
+    });
+
+    li.appendChild(checkbox);
+    li.appendChild(text);
+    li.appendChild(deleteBtn);
+    inlineTodoListEl.appendChild(li);
+  });
+  updateTodoMoreIndicator();
+  updateTodoCount();
+}
+
+inlineTodoClear.addEventListener('click', () => {
+  const completedCount = todos.filter((todo) => todo.completed).length;
+  if (completedCount === 0) {
+    return;
+  }
+
+  const previousTodos = cloneTodos(todos);
+  todos = todos.filter(t => !t.completed);
+  saveTodos();
+  renderInlineTodos();
+  showTodoUndoToast(
+    completedCount === 1 ? 'Cleared 1 completed task' : `Cleared ${completedCount} completed tasks`,
+    previousTodos
+  );
+});
+
+inlineTodoClearAll.addEventListener('click', () => {
+  if (todos.length === 0) {
+    return;
+  }
+
+  const previousTodos = cloneTodos(todos);
+  const clearedCount = todos.length;
+  todos = [];
+  saveTodos();
+  renderInlineTodos();
+  showTodoUndoToast(
+    clearedCount === 1 ? 'Cleared 1 task' : `Cleared ${clearedCount} tasks`,
+    previousTodos
+  );
+});
+
+inlineTodoInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const text = inlineTodoInput.value.trim();
+    if (!text) return;
+    hideTodoToast();
+    todos.push({ text, completed: false, id: Date.now() });
+    saveTodos();
+    renderInlineTodos();
+    inlineTodoInput.value = '';
   }
 });
 

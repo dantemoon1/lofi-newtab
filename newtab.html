@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Lofi New Tab</title>
     <link rel="icon" href="icons/icon32.png" sizes="32x32" />
+    <link rel="stylesheet" href="fonts/fonts.css" />
     <link rel="stylesheet" href="newtab.css" />
   </head>
   <body>
@@ -22,6 +23,26 @@
     </div>
 
     <div id="veil"></div>
+
+    <div id="inlineTodo" class="inline-widget">
+      <div class="inline-widget-header">
+        <div class="inline-widget-title">Todo <span id="inlineTodoCount" class="inline-todo-count"></span></div>
+        <div class="inline-widget-actions">
+          <button id="inlineTodoClear" type="button" aria-label="Clear completed">✓<span class="inline-tooltip">Clear completed</span></button>
+          <button id="inlineTodoClearAll" type="button" aria-label="Clear all">✕<span class="inline-tooltip">Clear all</span></button>
+        </div>
+      </div>
+      <div class="inline-todo-input">
+        <input type="text" id="inlineTodoInput" placeholder="Add a task..." />
+      </div>
+      <ul id="inlineTodoList"></ul>
+      <div id="inlineTodoMore" class="inline-todo-more">▾ more</div>
+    </div>
+
+    <div id="inlineTodoToast" class="inline-todo-toast" aria-live="polite">
+      <span id="inlineTodoToastMessage"></span>
+      <button id="inlineTodoUndo" type="button">Undo</button>
+    </div>
 
     <div id="clock" aria-live="polite">
       <div id="time">--:--</div>
@@ -66,9 +87,8 @@
         </div>
         <div class="modal-tabs">
           <button class="tab-btn active" data-tab="video">Video</button>
-          <button class="tab-btn" data-tab="display">Display</button>
-          <button class="tab-btn" data-tab="pomodoro">Pomodoro</button>
-          <button class="tab-btn" data-tab="weather">Weather</button>
+          <button class="tab-btn" data-tab="appearance">Appearance</button>
+          <button class="tab-btn" data-tab="features">Features</button>
           <button class="tab-btn" data-tab="about">About</button>
         </div>
         <div class="modal-body">
@@ -116,24 +136,24 @@
 
           </div>
 
-          <div class="tab-content" id="tab-display">
+          <div class="tab-content" id="tab-appearance">
+            <div class="setting-row">
+              <label>Font:</label>
+              <div class="font-select" id="fontSelectWrapper">
+                <button type="button" class="font-select-trigger" id="fontSelectTrigger">
+                  <span id="fontSelectLabel">System Default</span>
+                  <span class="font-select-arrow">▾</span>
+                </button>
+                <div class="font-select-dropdown" id="fontSelectDropdown"></div>
+              </div>
+              <p class="hint">Choose a font for the clock and UI</p>
+            </div>
+
             <div class="setting-row">
               <label for="use24h">
                 <input type="checkbox" id="use24h" />
                 Use 24-hour clock
               </label>
-            </div>
-
-            <div class="setting-row">
-              <label for="clockPosition">Clock Position (% from top):</label>
-              <input type="number" id="clockPosition" placeholder="10" min="0" max="100" />
-              <p class="hint">Position of the clock as percentage from top (0-100)</p>
-            </div>
-
-            <div class="setting-row">
-              <label for="infoPosition">Date/Weather Position (% from bottom):</label>
-              <input type="number" id="infoPosition" placeholder="5" min="0" max="100" />
-              <p class="hint">Position of date/weather as percentage from bottom (0-100)</p>
             </div>
 
             <div class="setting-row">
@@ -168,79 +188,93 @@
             </div>
 
             <div class="setting-row">
-              <label for="overrideTime">Override Time Display:</label>
-              <input type="text" id="overrideTime" placeholder="10:24 AM" />
-              <p class="hint">Leave blank for live time. Handy for screenshots.</p>
-            </div>
-          </div>
-
-          <div class="tab-content" id="tab-pomodoro">
-            <div class="setting-row">
-              <label for="showPomodoro">
-                <input type="checkbox" id="showPomodoro" />
-                Show Pomodoro timer
-              </label>
+              <label for="clockPosition">Clock Position (% from top):</label>
+              <input type="number" id="clockPosition" placeholder="10" min="0" max="100" />
+              <p class="hint">Position of the clock as percentage from top (0-100)</p>
             </div>
 
             <div class="setting-row">
-              <label for="pomodoroWork">Work Duration (minutes):</label>
-              <input type="number" id="pomodoroWork" placeholder="25" min="1" max="120" value="25" />
-              <p class="hint">Length of each work session (default: 25 minutes)</p>
+              <label for="infoPosition">Date/Weather Position (% from bottom):</label>
+              <input type="number" id="infoPosition" placeholder="5" min="0" max="100" />
+              <p class="hint">Position of date/weather as percentage from bottom (0-100)</p>
             </div>
 
-            <div class="setting-row">
-              <label for="pomodoroBreak">Break Duration (minutes):</label>
-              <input type="number" id="pomodoroBreak" placeholder="5" min="1" max="60" value="5" />
-              <p class="hint">Length of short breaks between work sessions (default: 5 minutes)</p>
-            </div>
-
-            <div class="setting-row">
-              <label for="pomodoroLongBreak">Long Break Duration (minutes):</label>
-              <input type="number" id="pomodoroLongBreak" placeholder="15" min="1" max="120" value="15" />
-              <p class="hint">Length of long break after 4 work sessions (default: 15 minutes)</p>
-            </div>
-
-            <div class="setting-row">
-              <label for="pomodoroPulseSpeed">Dot Pulse Speed (seconds):</label>
-              <input type="number" id="pomodoroPulseSpeed" placeholder="3" min="0.5" max="10" step="0.5" value="3" />
-              <p class="hint">Speed of the breathing animation on the active session dot (default: 3 seconds)</p>
-            </div>
-          </div>
-
-          <div class="tab-content" id="tab-weather">
-            <div class="setting-row">
-              <label for="showWeather">
-                <input type="checkbox" id="showWeather" />
-                Show weather widget
-              </label>
-            </div>
-
-            <div class="setting-row">
-              <label>Weather Location Source:</label>
-              <div class="weather-mode-group" role="radiogroup" aria-label="Weather location source">
-                <label class="weather-mode-option" for="weatherModeManual">
-                  <input type="radio" id="weatherModeManual" name="weatherMode" value="manual" />
-                  <span>Manual city</span>
-                </label>
-                <label class="weather-mode-option" for="weatherModeAuto">
-                  <input type="radio" id="weatherModeAuto" name="weatherMode" value="auto" checked />
-                  <span>Auto-detect</span>
-                </label>
+            <details class="advanced-section">
+              <summary>Advanced</summary>
+              <div class="setting-row">
+                <label for="overrideTime">Override Time Display:</label>
+                <input type="text" id="overrideTime" placeholder="10:24 AM" />
+                <p class="hint">Leave blank for live time. Handy for screenshots.</p>
               </div>
-              <p class="hint">Auto-detect uses your approximate IP-based location.</p>
-            </div>
+            </details>
+          </div>
 
-            <div class="setting-row" id="weatherCityRow">
-              <label for="weatherCity">Weather Location (City):</label>
-              <input type="text" id="weatherCityInput" placeholder="San Francisco" />
-              <p class="hint">Enter your city name for weather updates</p>
-            </div>
-
-            <div class="setting-row">
-              <label for="useFahrenheit">
-                <input type="checkbox" id="useFahrenheit" />
-                Use Fahrenheit (°F)
+          <div class="tab-content" id="tab-features">
+            <div class="feature-group">
+              <label class="feature-toggle" for="showInlineTodo">
+                <input type="checkbox" id="showInlineTodo" />
+                Todo
               </label>
+            </div>
+
+            <div class="feature-group">
+              <label class="feature-toggle" for="showPomodoro">
+                <input type="checkbox" id="showPomodoro" />
+                Pomodoro Timer
+              </label>
+              <div class="feature-settings">
+                <div class="setting-row">
+                  <label for="pomodoroWork">Work Duration (minutes):</label>
+                  <input type="number" id="pomodoroWork" placeholder="25" min="1" max="120" value="25" />
+                </div>
+                <div class="setting-row">
+                  <label for="pomodoroBreak">Break Duration (minutes):</label>
+                  <input type="number" id="pomodoroBreak" placeholder="5" min="1" max="60" value="5" />
+                </div>
+                <div class="setting-row">
+                  <label for="pomodoroLongBreak">Long Break Duration (minutes):</label>
+                  <input type="number" id="pomodoroLongBreak" placeholder="15" min="1" max="120" value="15" />
+                  <p class="hint">Long break triggers after 4 work sessions</p>
+                </div>
+                <div class="setting-row">
+                  <label for="pomodoroPulseSpeed">Dot Pulse Speed (seconds):</label>
+                  <input type="number" id="pomodoroPulseSpeed" placeholder="3" min="0.5" max="10" step="0.5" value="3" />
+                  <p class="hint">Speed of the breathing animation on the active dot</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="feature-group">
+              <label class="feature-toggle" for="showWeather">
+                <input type="checkbox" id="showWeather" />
+                Weather
+              </label>
+              <div class="feature-settings">
+                <div class="setting-row">
+                  <label>Location Source:</label>
+                  <div class="weather-mode-group" role="radiogroup" aria-label="Weather location source">
+                    <label class="weather-mode-option" for="weatherModeManual">
+                      <input type="radio" id="weatherModeManual" name="weatherMode" value="manual" />
+                      <span>Manual city</span>
+                    </label>
+                    <label class="weather-mode-option" for="weatherModeAuto">
+                      <input type="radio" id="weatherModeAuto" name="weatherMode" value="auto" checked />
+                      <span>Auto-detect</span>
+                    </label>
+                  </div>
+                  <p class="hint">Auto-detect uses your approximate IP-based location.</p>
+                </div>
+                <div class="setting-row" id="weatherCityRow">
+                  <label for="weatherCity">City:</label>
+                  <input type="text" id="weatherCityInput" placeholder="San Francisco" />
+                </div>
+                <div class="setting-row">
+                  <label for="useFahrenheit">
+                    <input type="checkbox" id="useFahrenheit" />
+                    Use Fahrenheit (°F)
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -272,11 +306,28 @@
     <div id="changelogModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h2>What's New in v<span id="changelogVersion">1.2.0</span></h2>
+          <h2>What's New in v<span id="changelogVersion">1.3.0</span></h2>
           <button id="closeChangelogModal" type="button" title="Close">✕</button>
         </div>
         <div class="modal-body">
           <div class="changelog-content">
+            <h3 class="changelog-heading">Todo Widget</h3>
+            <p class="changelog-copy">
+              Keep a simple todo list right on your new tab.
+            </p>
+
+            <h3 class="changelog-heading">Font Picker</h3>
+            <p class="changelog-copy">
+              Pick from 13 fonts with live previews in the dropdown. Five new options added.
+            </p>
+
+            <h3 class="changelog-heading">Cleaner Settings</h3>
+            <p class="changelog-copy">
+              Settings reorganized into fewer, more intuitive tabs.
+            </p>
+
+            <h3 class="changelog-heading changelog-version-divider">v1.2.0</h3>
+
             <h3 class="changelog-heading">YouTube Playlist Support</h3>
             <p class="changelog-copy">
               You can now paste a YouTube playlist link to loop through multiple videos instead of playing just one.
